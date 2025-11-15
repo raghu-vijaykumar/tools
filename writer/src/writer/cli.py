@@ -42,19 +42,25 @@ def run(
     reviewer_guidelines: str = typer.Option(
         ..., help="Path to reviewer guidelines file"
     ),
-    partial: str = typer.Option(None, help="Path to optional partial document"),
     output: str = typer.Option(..., help="Output markdown file path"),
     metadata_out: str = typer.Option(None, help="Output JSON metadata file path"),
     max_iters: int = typer.Option(
         3, help="Maximum number of writer-reviewer iterations"
     ),
+    accept_threshold: int = typer.Option(
+        None,
+        min=1,
+        max=100,
+        help="Score threshold (1-100) for accepting the draft. Default 85. Setting this enables high iteration mode.",
+    ),
     index_only: bool = typer.Option(
         False, help="Only index the knowledge base, don't generate documentation"
     ),
+    yolo: bool = typer.Option(
+        False,
+        help="Automatically answer clarifying questions instead of prompting user (YOLO mode)",
+    ),
 ):
-    """
-    Run the AI documentation generator with writer-reviewer loop.
-    """
 
     # Setup logging
     setup_logging()
@@ -95,6 +101,7 @@ def run(
         llm_provider=llm,
         embedding_provider=embedding_provider,
         embedding_model=embedding_model,
+        auto_answer_clarifying=yolo,
     )
 
     # Index only mode
@@ -109,17 +116,28 @@ def run(
         console.print("[green]Knowledge base indexed successfully![/green]")
         return
 
+    # Handle accept threshold and max iterations
+    if accept_threshold is None:
+        accept_threshold = 85
+        final_max_iters = max_iters
+        console.print(
+            f"[blue]Stopping at score >= {accept_threshold}, max iterations: {final_max_iters}[/blue]"
+        )
+    else:
+        # User provided threshold, enable high iteration mode
+        final_max_iters = 1000 if max_iters == 3 else max(1000, max_iters)
+        console.print(
+            f"[blue]High confidence threshold mode: stopping at score >= {accept_threshold}, max iterations set to {final_max_iters}[/blue]"
+        )
+
     # Run the generation loop
     try:
         draft, metadata = loop.run_loop(
-            idea=idea, partial_doc=partial, max_iters=max_iters
+            idea=idea,
+            max_iters=final_max_iters,
+            accept_threshold=accept_threshold,
+            output_file=output,
         )
-
-        # Save outputs
-        output_path = Path(output)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(draft)
 
         if metadata_out:
             metadata_path = Path(metadata_out)
@@ -140,7 +158,7 @@ def run(
             f"[white]Score: {score}/100[/white]\n"
             f"[white]Iterations: {iterations}[/white]\n"
             f"[white]Accepted: {'Yes' if accepted else 'No'}[/white]\n\n"
-            f"[dim]Output: {output_path}[/dim]\n"
+            f"[dim]Output: {output}[/dim]\n"
             f"{'[dim]Metadata: ' + metadata_out + '[/dim]' if metadata_out else ''}",
             title="[bold blue]Generation Complete[/bold blue]",
             border_style=color,

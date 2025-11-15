@@ -74,6 +74,39 @@ Generate the complete document in markdown format, dont include ```markdown tags
         response = self.llm.invoke(prompt)
         return response.content.strip()
 
+    def answer_clarifying_question(
+        self,
+        question: str,
+        idea: str,
+        references: List[Dict],
+        guidelines: str,
+        current_draft: Optional[str] = None,
+    ) -> str:
+        """Automatically answer a clarifying question using the LLM."""
+
+        formatted_refs = self._format_references(references)
+
+        prompt = f"""
+You are a writer answering a clarifying question to help improve a documentation draft.
+
+WRITER GUIDELINES:
+{guidelines}
+
+ORIGINAL IDEA: {idea}
+
+{f"CURRENT DRAFT: {current_draft}" if current_draft else ""}
+
+RELEVANT KNOWLEDGE BASE REFERENCES:
+{formatted_refs}
+
+QUESTION: {question}
+
+Provide a concise, helpful answer to this clarifying question. Focus on practical details that will help create better documentation. Keep the answer focused and actionable.
+"""
+
+        response = self.llm.invoke(prompt)
+        return response.content.strip()
+
     def apply_patch(
         self,
         current_draft: str,
