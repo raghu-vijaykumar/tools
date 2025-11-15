@@ -1,0 +1,10 @@
+[tool.uv.workspace]
+members = ["common", "newsletter", "writer", "cli"]
+
+[tool.uv.sources]
+common = { workspace = true }
+newsletter = { workspace = true }
+writer = { workspace = true }
+
+[tool.uv]
+dev-dependencies = ["pytest"]

@@ -1,0 +1,20 @@
+[project]
+name = "writer"
+version = "0.1.0"
+description = "AI documentation generator"
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.9.0",
+    "chromadb>=0.4.0",
+    "langchain>=1.0.5",
+    "pypdf>=4.0.0",
+    "rich>=13.7.0",
+    "common>=0.1.0",
+]
+
+[project.scripts]
+writer = "writer.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

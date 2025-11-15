@@ -1,0 +1,15 @@
+[project]
+name = "newsletter"
+version = "0.1.0"
+description = "Daily tech newsletter fetcher, summarizer, and audio generator"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "beautifulsoup4>=4.14.2",
+    "click>=8.1.8",
+    "feedparser>=6.0.12",
+    "common>=0.1.0",
+]
+
+[project.scripts]
+newsletter = "newsletter.main:main"
