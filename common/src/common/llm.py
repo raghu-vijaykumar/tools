@@ -20,6 +20,51 @@ from .config import (
     OPENAI_MODEL,
 )
 
+
+class LLMClient:
+    """Singleton LLM client"""
+
+    _instance = None
+    _instances = {}
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
+    def get_llm(self, provider="gemini"):
+        """Get cached LLM instance for the specified provider."""
+        if provider not in self._instances:
+            if provider == "groq":
+                self._instances[provider] = ChatGroq(
+                    model=GROQ_MODEL,
+                    api_key=get_groq_api_key(),
+                    max_retries=0,
+                    timeout=30,
+                )
+            elif provider == "gemini":
+                self._instances[provider] = ChatGoogleGenerativeAI(
+                    model=GEMINI_MODEL,
+                    google_api_key=get_google_api_key(),
+                    max_retries=0,
+                    timeout=30,
+                )
+            elif provider == "openai":
+                self._instances[provider] = ChatOpenAI(
+                    model=OPENAI_MODEL,
+                    openai_api_key=get_openai_api_key(),
+                    max_retries=0,
+                    timeout=30,
+                )
+            else:
+                raise ValueError(f"Unsupported LLM provider: {provider}")
+
+        return self._instances[provider]
+
+
+# Global instance
+llm_client = LLMClient()
+
 # Rate limiting
 wait_time = 60 / RATE_LIMIT_RPM
 tts_wait_time = 60 / TTS_RATE_LIMIT_RPM
@@ -30,26 +75,7 @@ last_tts_call = 0
 
 def get_llm(provider="gemini"):
     """Get LLM instance for the specified provider."""
-    if provider == "groq":
-        return ChatGroq(
-            model=GROQ_MODEL, api_key=get_groq_api_key(), max_retries=0, timeout=30
-        )
-    elif provider == "gemini":
-        return ChatGoogleGenerativeAI(
-            model=GEMINI_MODEL,
-            google_api_key=get_google_api_key(),
-            max_retries=0,
-            timeout=30,
-        )
-    elif provider == "openai":
-        return ChatOpenAI(
-            model=OPENAI_MODEL,
-            openai_api_key=get_openai_api_key(),
-            max_retries=0,
-            timeout=30,
-        )
-    else:
-        raise ValueError(f"Unsupported LLM provider: {provider}")
+    return llm_client.get_llm(provider)
 
 
 @retry(
