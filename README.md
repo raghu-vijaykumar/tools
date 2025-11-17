@@ -129,6 +129,53 @@ uv run python cli/cli/main.py --help
 
 Each package is independently runnable but shares common utilities.
 
+## Testing
+
+The project uses pytest for comprehensive test coverage across all workspace packages. Tests are configured for workspace-wide execution with mocked external dependencies (LangChain LLMs, gTTS, and other APIs).
+
+### Running Tests
+
+Run tests from any directory in the project:
+
+`ash
+# Run all tests across workspace (recommended)
+uv run pytest --cov=writer --cov=newsletter --cov=common --cov=tts --cov=cli --cov-report=term-missing
+
+# Run tests for specific package
+uv run pytest writer/tests/
+
+# Run with HTML coverage report
+uv run pytest --cov-report=html --cov-report=term-missing
+open htmlcov/index.html  # View detailed coverage report
+```
+
+### Test Coverage Goals
+
+- **95%+** coverage for core business logic (`writer_agent.py`, etc.)
+- **90%+** overall workspace coverage target
+- External API calls (LLM invocations, gTTS) are properly mocked
+- End-to-end CLI command testing included
+
+### Test Structure
+
+Tests are organized by package with comprehensive mocking:
+
+```
+├── writer/tests/         # AI Documentation Writer tests (95%+ coverage)
+├── newsletter/tests/     # Newsletter automation tests
+├── common/tests/         # Shared utilities (LLM, gTTS mocking)
+├── tts/tests/           # Text-to-speech tests
+└── cli/tests/           # CLI interface tests
+```
+
+### Configuration
+
+The workspace is configured for seamless cross-package testing:
+
+- **pytest.ini_options** in `pyproject.toml` defines test discovery paths
+- **Coverage configured** for all workspace packages
+- **Mocked dependencies** isolate external API calls for reliable CI/CD
+
 ## Requirements
 
 - Python 3.12+

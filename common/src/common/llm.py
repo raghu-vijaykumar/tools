@@ -3,17 +3,12 @@ import time
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_openai import ChatOpenAI
-from gtts import gTTS
-from pydub import AudioSegment
 from tenacity import retry, stop_after_attempt, wait_fixed
 from .config import (
     get_google_api_key,
     get_groq_api_key,
     get_openai_api_key,
-    AUDIO_LANG,
-    AUDIO_SPEED,
     RATE_LIMIT_RPM,
-    TTS_RATE_LIMIT_RPM,
     last_llm_call,
     GROQ_MODEL,
     GEMINI_MODEL,
@@ -67,10 +62,6 @@ llm_client = LLMClient()
 
 # Rate limiting
 wait_time = 60 / RATE_LIMIT_RPM
-tts_wait_time = 60 / TTS_RATE_LIMIT_RPM
-
-# Singleton GTTS rate limiting
-last_tts_call = 0
 
 
 def get_llm(provider="gemini"):
@@ -114,27 +105,3 @@ def summarize_article(article, provider="gemini"):
     )
     last_llm_call = time.time()
     return response.content.strip()
-
-
-@retry(
-    stop=stop_after_attempt(3),
-    wait=wait_fixed(tts_wait_time),
-)
-def generate_audio_chunk(text_chunk, temp_file):
-    """Generate audio for a text chunk."""
-    global last_tts_call
-    current_time = time.time()
-    time_since_last = current_time - last_tts_call
-    if time_since_last < tts_wait_time:
-        time.sleep(tts_wait_time - time_since_last)
-    tts = gTTS(text=text_chunk, lang=AUDIO_LANG, slow=False)
-    tts.save(temp_file)
-
-    # Apply speed adjustment if needed
-    if AUDIO_SPEED != 1.0:
-        audio = AudioSegment.from_mp3(temp_file)
-        # Speed up the audio (higher speed = shorter duration)
-        sped_up_audio = audio.speedup(playback_speed=AUDIO_SPEED)
-        sped_up_audio.export(temp_file, format="mp3")
-
-    last_tts_call = time.time()

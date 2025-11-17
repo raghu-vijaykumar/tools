@@ -1,8 +1,42 @@
 import os
 import re
 import tempfile
-from .llm import generate_audio_chunk
-from .config import AUDIO_SPEED, DATA_DIR
+import time
+from gtts import gTTS
+from pydub import AudioSegment
+from tenacity import retry, stop_after_attempt, wait_fixed
+from .config import AUDIO_SPEED, DATA_DIR, AUDIO_LANG, TTS_RATE_LIMIT_RPM
+
+
+# Singleton GTTS rate limiting
+last_tts_call = 0
+
+# Rate limiting
+tts_wait_time = 60 / TTS_RATE_LIMIT_RPM
+
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_fixed(tts_wait_time),
+)
+def generate_audio_chunk(text_chunk, temp_file):
+    """Generate audio for a text chunk."""
+    global last_tts_call
+    current_time = time.time()
+    time_since_last = current_time - last_tts_call
+    if time_since_last < tts_wait_time:
+        time.sleep(tts_wait_time - time_since_last)
+    tts = gTTS(text=text_chunk, lang=AUDIO_LANG, slow=False)
+    tts.save(temp_file)
+
+    # Apply speed adjustment if needed
+    if AUDIO_SPEED != 1.0:
+        audio = AudioSegment.from_mp3(temp_file)
+        # Speed up the audio (higher speed = shorter duration)
+        sped_up_audio = audio.speedup(playback_speed=AUDIO_SPEED)
+        sped_up_audio.export(temp_file, format="mp3")
+
+    last_tts_call = time.time()
 
 
 def clean_text_for_audio(text):
