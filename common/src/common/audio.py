@@ -2,10 +2,17 @@ import os
 import re
 import tempfile
 import time
+import torch
 from gtts import gTTS
+from transformers import pipeline
 from pydub import AudioSegment
+import numpy as np
+import soundfile as sf
 from tenacity import retry, stop_after_attempt, wait_fixed
 from .config import AUDIO_SPEED, DATA_DIR, AUDIO_LANG, TTS_RATE_LIMIT_RPM
+
+# Text chunk size for TTS processing
+TEXT_CHUNK_SIZE = 400
 
 
 # Singleton GTTS rate limiting
@@ -58,96 +65,133 @@ def clean_text_for_audio(text):
     return text
 
 
-def generate_audio(text, filename):
-    """Generate audio from text and save to file."""
-    # Split into chunks of ~5000 characters (roughly 500-1000 words)
-    max_chunk_length = 5000
-    words = text.split()
-    chunks = []
-    current_chunk = []
+def generate_audio(text, filename, tts_provider="gtts"):
+    """Generate audio from text using the specified TTS model or provider."""
+    if os.path.exists(filename):
+        print(f"Audio already exists: {filename}")
+        return
 
-    for word in words:
-        if len(" ".join(current_chunk)) + len(word) < max_chunk_length:
-            current_chunk.append(word)
-        else:
+    if tts_provider == "gtts":
+        print("Using TTS provider: gTTS (Google Text-to-Speech API)")
+        # Split into chunks of ~5000 characters (roughly 500-1000 words) for API calls
+        max_chunk_length = 5000
+        words = text.split()
+        chunks = []
+        current_chunk = []
+
+        for word in words:
+            if len(" ".join(current_chunk)) + len(word) < max_chunk_length:
+                current_chunk.append(word)
+            else:
+                chunks.append(" ".join(current_chunk))
+                current_chunk = [word]
+        if current_chunk:
             chunks.append(" ".join(current_chunk))
-            current_chunk = [word]
-    if current_chunk:
-        chunks.append(" ".join(current_chunk))
 
-    audio_files = []
-    for i, chunk in enumerate(chunks):
-        with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
-            generate_audio_chunk(chunk, temp_file.name)
-            audio_files.append(temp_file.name)
+        audio_files = []
+        for i, chunk in enumerate(chunks):
+            with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as temp_file:
+                generate_audio_chunk(chunk, temp_file.name)
+                audio_files.append(temp_file.name)
 
-    # Combine all audio files
-    from pydub import AudioSegment
+        # Combine all audio files
+        combined = AudioSegment.empty()
+        for audio_file in audio_files:
+            segment = AudioSegment.from_mp3(audio_file)
+            combined += segment
 
-    combined = AudioSegment.empty()
-    for audio_file in audio_files:
-        segment = AudioSegment.from_mp3(audio_file)
-        combined += segment
+        # Export the combined audio
+        os.makedirs(os.path.dirname(filename), exist_ok=True)
+        combined.export(filename, format="mp3")
 
-    # Export the combined audio
-    os.makedirs(os.path.dirname(filename), exist_ok=True)
-    combined.export(filename, format="mp3")
+        # Clean up temporary files
+        for audio_file in audio_files:
+            os.unlink(audio_file)
 
-    # Clean up temporary files
-    for audio_file in audio_files:
-        os.unlink(audio_file)
+    else:
+        print(f"Using TTS model: {tts_provider}")
+        # Hugging Face TTS model (local models)
+        # Split text into chunks at word boundaries
+        chunks = []
+        start = 0
+        while start < len(text):
+            end = start + TEXT_CHUNK_SIZE
+            if end >= len(text):
+                chunks.append(text[start:])
+                break
+            # Find the nearest space after or before end
+            if text[end] == " ":
+                chunks.append(text[start:end])
+                start = end
+            else:
+                space_before = text.rfind(" ", start, end)
+                if space_before != -1:
+                    chunks.append(text[start:space_before])
+                    start = space_before + 1  # Skip space
+                else:
+                    # No space found, find next space after
+                    space_after = text.find(" ", end, end + 50)
+                    if space_after != -1:
+                        chunks.append(text[start:space_after])
+                        start = space_after + 1
+                    else:
+                        # Force cut
+                        chunks.append(text[start:end])
+                        start = end
 
+        # Set device
+        device = "cuda" if torch.cuda.is_available() else "cpu"
 
-def generate_summaries_audio(date_str):
-    """Generate audio for the summaries of the given date."""
-    summaries_file = os.path.join(DATA_DIR, date_str, "summaries.json")
-    if not os.path.exists(summaries_file):
-        raise FileNotFoundError(f"Summaries file not found: {summaries_file}")
+        # Initialize pipeline
+        try:
+            synthesizer = pipeline("text-to-speech", tts_provider, device=device)
+            print(f"Using TTS model: {tts_provider} on device: {device}")
+        except Exception as e:
+            print(f"Error loading TTS model '{tts_provider}': {e}")
+            return
 
-    import json
+        # Use a default speaker embedding (zeros) - adjust size if needed for different models
+        speaker_embedding = torch.zeros(1, 512, dtype=torch.float32)
 
-    with open(summaries_file, "r") as f:
-        summaries = json.load(f)
+        # Generate audio for each chunk
+        audio_arrays = []
+        sample_rates = []
 
-    text = f"Daily Tech Newsletter Digest Audio for {date_str}\n\n"
-    for summary in summaries:
-        if isinstance(summary, dict):
-            summary_text = summary.get("summary", "")
+        for i, chunk in enumerate(chunks, 1):
+            if not chunk.strip():
+                continue
+            try:
+                print(f"Processing TTS chunk {i}/{len(chunks)} ({len(chunk)} chars)")
+                speech = synthesizer(
+                    chunk, forward_params={"speaker_embeddings": speaker_embedding}
+                )
+                audio_arrays.append(np.array(speech["audio"]))
+                sample_rates.append(speech["sampling_rate"])
+            except Exception as e:
+                print(f"Error generating audio for chunk {i}: {e}")
+                continue
+
+        if not audio_arrays:
+            print("Error: No audio generated.")
+            return
+
+        # All chunks should have same sample rate
+        target_rate = sample_rates[0] if sample_rates else 16000
+
+        # Concatenate all audio chunks
+        concatenated = np.concatenate(audio_arrays, axis=0)
+        audio_data = concatenated.squeeze()
+        sampling_rate = target_rate
+
+        # Save audio
+        ext = os.path.splitext(filename)[1].lower()
+        if ext == ".wav":
+            sf.write(filename, audio_data, sampling_rate)
         else:
-            summary_text = str(summary)
-        text += summary_text + "\n\n"
-
-    audio_filename = os.path.join(DATA_DIR, "audio", "summaries", f"{date_str}.mp3")
-    generate_audio(text, audio_filename)
-
-
-def generate_article_audio(date_str, title, link):
-    """Generate audio for a specific article."""
-    articles_file = os.path.join(DATA_DIR, "articles", f"{date_str}.md")
-    if not os.path.exists(articles_file):
-        raise FileNotFoundError(f"Articles file not found: {articles_file}")
-
-    with open(articles_file, "r") as f:
-        content = f.read()
-
-    # Find the article section
-    article_marker = f"## [{title}]({link})"
-    start_idx = content.find(article_marker)
-    if start_idx == -1:
-        raise ValueError(f"Article not found in file: {title}")
-
-    # Find the next article or end
-    next_marker = "\n## ["
-    end_idx = content.find(next_marker, start_idx + len(article_marker))
-    if end_idx == -1:
-        end_idx = len(content)
-    article_content = content[start_idx:end_idx]
-
-    text = clean_text_for_audio(article_content)
-    audio_filename = os.path.join(
-        DATA_DIR,
-        "audio",
-        "articles",
-        f"{date_str}_{title.replace('/', '_').replace(' ', '_')}.mp3",
-    )
-    generate_audio(text, audio_filename)
+            # Default to mp3 via pydub
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            temp_wav = filename.rsplit(".", 1)[0] + "_temp.wav"
+            sf.write(temp_wav, audio_data, sampling_rate)
+            audio = AudioSegment.from_wav(temp_wav)
+            audio.export(filename, format="mp3")
+            os.remove(temp_wav)

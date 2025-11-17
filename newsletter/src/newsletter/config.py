@@ -3,7 +3,6 @@ from common.config import *
 # Sources: list of RSS feed URLs for tech company blogs
 SOURCES = [
     "https://developers.googleblog.com/feeds/posts/default",
-    "https://research.google.blog/rss/",
     "https://engineering.fb.com/feed/",
     "https://medium.com/feed/airbnb-engineering",
     "https://engineering.linkedin.com/blog.rss.html",
