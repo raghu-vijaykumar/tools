@@ -53,7 +53,7 @@ def get_embeddings(provider: str = "openai", model: Optional[str] = None):
                 "langchain-community not installed. Run: pip install langchain-community"
             )
 
-        model_name = model or "sentence-transformers/all-MiniLM-L6-v2"
+        model_name = model or "Qwen/Qwen3-Embedding-8B"
         return HuggingFaceEmbeddings(
             model_name=model_name,
             model_kwargs={"device": "cpu"},
@@ -66,7 +66,7 @@ def get_embeddings(provider: str = "openai", model: Optional[str] = None):
                 "sentence-transformers not installed. Run: pip install sentence-transformers"
             )
 
-        model_name = model or "all-MiniLM-L6-v2"
+        model_name = model or "Qwen/Qwen3-Embedding-8B"
 
         class SentenceTransformersEmbeddings:
             """Custom wrapper for sentence-transformers to match LangChain interface."""
@@ -76,11 +76,13 @@ def get_embeddings(provider: str = "openai", model: Optional[str] = None):
 
             def embed_documents(self, texts: List[str]) -> List[List[float]]:
                 """Embed a list of documents."""
-                return self.model.encode(texts, convert_to_numpy=False).tolist()
+                embeddings = self.model.encode(texts, convert_to_numpy=True)
+                return embeddings.tolist()
 
             def embed_query(self, text: str) -> List[float]:
                 """Embed a single query."""
-                return self.model.encode(text, convert_to_numpy=False).tolist()
+                embedding = self.model.encode(text, convert_to_numpy=True)
+                return embedding.tolist()
 
         return SentenceTransformersEmbeddings(model_name)
 
@@ -114,6 +116,6 @@ def get_default_models():
     return {
         "openai": "text-embedding-3-small",
         "gemini": "models/embedding-001",
-        "huggingface": "sentence-transformers/all-MiniLM-L6-v2",
-        "sentence-transformers": "all-MiniLM-L6-v2",
+        "huggingface": "Qwen/Qwen3-Embedding-8B",
+        "sentence-transformers": "Qwen/Qwen3-Embedding-8B",
     }

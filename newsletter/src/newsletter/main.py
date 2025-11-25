@@ -2,6 +2,7 @@ import click
 import sys
 import os
 import shutil
+import logging
 from datetime import datetime, timedelta
 
 # Add src to path for direct execution
@@ -11,9 +12,10 @@ from newsletter.fetcher import fetch_articles
 from newsletter.summarizer import (
     summarize_articles_for_date,
     generate_combined_articles_markdown,
+    generate_linkedin_post_for_date,
 )
 from .audio import generate_summaries_audio
-from common.telegram import send_summaries_sync
+from common.telegram import send_summaries_sync, send_linkedin_post_sync
 from common.config import get_date_str, get_days_ago
 
 
@@ -29,45 +31,64 @@ def cleanup_data_directory():
                 elif os.path.isdir(file_path):
                     shutil.rmtree(file_path)
             except Exception as e:
-                print(f"Failed to delete {file_path}. Reason: {e}")
+                logging.error(f"Failed to delete {file_path}. Reason: {e}")
 
 
-def run_newsletter(days=1, provider="gemini", tts="gtts", cleanup=True):
+def run_newsletter(
+    days=1, dates_list=None, provider="gemini", tts="gtts", cleanup=True, no_audio=False
+):
     """Fetch, summarize, and generate audio for daily tech newsletters."""
-    print(f"Processing last {days} days...")
+    if dates_list:
+        logging.info(f"Processing specific dates: {dates_list}...")
+        # Fetch articles for specific dates
+        articles_by_date = {}
+        for date_str in dates_list:
+            articles_for_date = fetch_articles(None, target_dates=[date_str])
+            articles_by_date.update(articles_for_date)
+    else:
+        logging.info(f"Processing last {days} days...")
+        articles_by_date = fetch_articles(days)
 
-    # Fetch articles
-    articles_by_date = fetch_articles(days)
-    print(f"Fetched articles for {len(articles_by_date)} dates.")
+    logging.info(f"Fetched articles for {len(articles_by_date)} dates.")
 
     # Process each date
     for date_str in sorted(articles_by_date.keys()):
-        print(f"Processing {date_str}...")
+        logging.info(f"Processing {date_str}...")
 
         # Summarize and generate markdown articles
         summaries = summarize_articles_for_date(date_str, provider)
-        print(f"Summarized {len(summaries)} articles and generated markdown articles.")
+        logging.info(
+            f"Summarized {len(summaries)} articles and generated markdown articles."
+        )
 
         # Generate combined articles markdown
         generate_combined_articles_markdown(date_str)
 
+        # Generate LinkedIn post
+        generate_linkedin_post_for_date(date_str, provider)
+
         if summaries:
-            # Generate combined summaries audio
-            generate_summaries_audio(date_str, tts)
-            print("Generated summaries audio.")
+            # Generate combined summaries audio if not skipping
+            if not no_audio:
+                generate_summaries_audio(date_str, tts)
+                logging.info("Generated summaries audio.")
 
             # Send summaries via Telegram
-            send_summaries_sync(date_str)
-            print("Sent summaries via Telegram.")
+            send_summaries_sync(date_str, no_audio=no_audio)
+            logging.info("Sent summaries via Telegram.")
+
+            # Send LinkedIn post via Telegram
+            send_linkedin_post_sync(date_str)
+            logging.info("Sent LinkedIn post via Telegram.")
 
     # Clean up data directory if requested
     if cleanup:
         cleanup_data_directory()
-        print("Cleaned up data directory.")
+        logging.info("Cleaned up data directory.")
     else:
-        print("Skipped data directory cleanup.")
+        logging.info("Skipped data directory cleanup.")
 
-    print("Done!")
+    logging.info("Newsletter processing completed successfully.")
 
 
 @click.command()
@@ -88,8 +109,9 @@ def run_newsletter(days=1, provider="gemini", tts="gtts", cleanup=True):
     default=True,
     help="Clean up data directory after processing (default: cleanup)",
 )
-def main(days, provider, tts, cleanup):
-    run_newsletter(days, provider, tts, cleanup)
+@click.option("--no-audio", is_flag=True, help="Skip audio generation")
+def main(days, provider, tts, cleanup, no_audio):
+    run_newsletter(days, provider, tts, cleanup, no_audio=no_audio)
 
 
 if __name__ == "__main__":

@@ -78,3 +78,20 @@ def get_days_ago(days):
 def get_start_of_day(days_ago=0):
     date = datetime.now() - timedelta(days=days_ago)
     return date.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def parse_dates(date_input):
+    """Parse comma-separated dates and date ranges into a list of date strings."""
+    dates = []
+    for part in date_input.split(","):
+        part = part.strip()
+        if " to " in part:
+            start_str, end_str = part.split(" to ")
+            start_date = datetime.strptime(start_str.strip(), DATE_FORMAT)
+            end_date = datetime.strptime(end_str.strip(), DATE_FORMAT)
+            delta = end_date - start_date
+            for i in range(delta.days + 1):
+                dates.append(get_date_str(start_date + timedelta(days=i)))
+        else:
+            dates.append(part)
+    return dates

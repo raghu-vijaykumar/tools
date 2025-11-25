@@ -2,7 +2,7 @@ import json
 import os
 import requests
 from bs4 import BeautifulSoup
-from common.llm import summarize_article
+from common.llm import summarize_article, get_llm
 from common.config import DATA_DIR
 
 
@@ -243,3 +243,82 @@ def generate_combined_articles_markdown(date_str):
     with open(combined_path, "w", encoding="utf-8") as f:
         f.write(combined_content)
     print(f"Generated combined articles markdown: {combined_path}")
+
+
+def generate_linkedin_post_for_date(date_str, provider="gemini"):
+    """Generate a LinkedIn post based on summarized articles for a given date."""
+    date_dir = os.path.join(DATA_DIR, date_str)
+    summaries_file = os.path.join(date_dir, "summaries.json")
+    linkedin_post_file = os.path.join(date_dir, "linkedin_post.txt")
+
+    if os.path.exists(linkedin_post_file):
+        print(f"LinkedIn post already exists for {date_str}, skipping.")
+        return
+
+    if not os.path.exists(summaries_file):
+        print(f"No summaries found for {date_str}")
+        return
+
+    with open(summaries_file, "r") as f:
+        summaries = json.load(f)
+
+    if not summaries:
+        print(f"No summaries to generate LinkedIn post for {date_str}")
+        return
+
+    # Combine summaries into one text
+    combined_summaries = ""
+    for summary in summaries:
+        combined_summaries += (
+            f"Title: {summary['title']}\nSummary: {summary['summary']}\n\n"
+        )
+
+    # Prepare prompts
+    system_prompt = """You are a technical writer creating LinkedIn posts about system design, architecture, and engineering insights.
+My tone is technical, clear, and high-signal. I focus on system design, architecture, and real engineering insights.
+I avoid buzzwords and corporate fluff. I sound like my own interpretation, not a copy.
+I emphasize what I learned and why it matters. Posts are suitable for professionals in AI, cloud, data engineering, and software engineering.
+
+When generating the post:
+Start with a strong, scroll-stopping insight or observation
+Use short paragraphs and lightweight formatting
+Use numbered insights or bullets when helpful
+Keep it crisp (150-220 words)
+Rephrase ideas completely in my own words
+No overhyped claims, no emojis unless they reinforce structure
+Make it feel like my perspective, not the article's
+
+Core structure:
+Hook / observation
+2-4 key takeaways
+A concise insight on why it matters for practitioners
+Optional: a subtle CTA like "worth reading if you work on X"
+
+IMPORTANT:
+Do not mention the article source unless I say so
+Do not sound promotional
+Highlight engineering tradeoffs and system design thinking
+Avoid lengthy introductions"""
+
+    user_prompt = f"Based on these summarized articles:\n\n{combined_summaries}\n\nGenerate a concise, engaging LinkedIn post following the guidelines."
+
+    # Call LLM
+    llm = get_llm(provider)
+    from langchain_core.prompts import PromptTemplate
+
+    prompt = PromptTemplate.from_template(
+        "System Instructions: {system}\n\nUser: {user}\n\nLinkedIn Post:"
+    )
+    chain = prompt | llm
+    response = chain.invoke(
+        {
+            "system": system_prompt,
+            "user": user_prompt,
+        }
+    )
+    linkedin_post = response.content.strip()
+
+    # Save to file
+    with open(linkedin_post_file, "w", encoding="utf-8") as f:
+        f.write(linkedin_post)
+    print(f"Generated LinkedIn post: {linkedin_post_file}")

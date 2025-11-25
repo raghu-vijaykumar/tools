@@ -69,7 +69,7 @@ def send_articles_sync(date_str):
     asyncio.run(send_articles_via_telegram(date_str))
 
 
-async def send_summaries_via_telegram(date_str):
+async def send_summaries_via_telegram(date_str, no_audio=False):
     """Send article summaries with links via Telegram."""
     import json
     import os
@@ -111,34 +111,65 @@ async def send_summaries_via_telegram(date_str):
 
         await _send_message_with_fallback(bot, chat_id, message, ParseMode.MARKDOWN)
 
-    # Send footer with audio status
-    if audio_exists:
-        footer = "*🎧 Combined Audio Summary Available*"
-    else:
-        footer = "*❌ Audio summary not generated*"
+    # Send footer with audio status only if not skipping audio
+    if not no_audio:
+        if audio_exists:
+            footer = "*🎧 Combined Audio Summary Available*"
+        else:
+            footer = "*❌ Audio summary not generated*"
 
-    await _send_message_with_fallback(bot, chat_id, footer, ParseMode.MARKDOWN)
+        await _send_message_with_fallback(bot, chat_id, footer, ParseMode.MARKDOWN)
 
-    # Send audio file if it exists
-    if audio_exists:
-        try:
-            with open(audio_path, "rb") as audio_file:
-                await bot.send_audio(
-                    chat_id=chat_id,
-                    audio=audio_file,
-                    title=f"Tech News Audio Summary - {date_str}",
-                    caption="🎵 Combined audio summary of today's tech news",
-                )
-                logger.info(f"Sent audio file for {date_str}")
-        except Exception as e:
-            logger.error(f"Failed to send audio: {e}")
+        # Send audio file if it exists and not skipping audio
+        if audio_exists:
+            try:
+                with open(audio_path, "rb") as audio_file:
+                    await bot.send_audio(
+                        chat_id=chat_id,
+                        audio=audio_file,
+                        title=f"Tech News Audio Summary - {date_str}",
+                        caption="🎵 Combined audio summary of today's tech news",
+                    )
+                    logger.info(f"Sent audio file for {date_str}")
+            except Exception as e:
+                logger.error(f"Failed to send audio: {e}")
 
 
-def send_summaries_sync(date_str):
+def send_summaries_sync(date_str, no_audio=False):
     """Synchronous wrapper for sending summaries."""
-    asyncio.run(send_summaries_via_telegram(date_str))
+    asyncio.run(send_summaries_via_telegram(date_str, no_audio=no_audio))
 
 
 def send_digest_sync(date_str):
     """Synchronous wrapper for sending digest."""
     asyncio.run(send_digest_via_telegram(date_str))
+
+
+async def send_linkedin_post_via_telegram(date_str):
+    """Send LinkedIn post for the given date via Telegram."""
+    bot_token = get_telegram_bot_token()
+    chat_id = get_telegram_chat_id()
+    bot = Bot(token=bot_token)
+
+    linkedin_post_path = f"data/{date_str}/linkedin_post.txt"
+    try:
+        with open(linkedin_post_path, "r", encoding="utf-8") as f:
+            linkedin_post = f.read().strip()
+    except FileNotFoundError:
+        raise FileNotFoundError(f"LinkedIn post file not found: {linkedin_post_path}")
+
+    # Send header
+    await _send_message_with_fallback(
+        bot, chat_id, f"*📝 LinkedIn Post - {date_str}*\n\n", ParseMode.MARKDOWN
+    )
+
+    # Send the LinkedIn post, handling length limits
+    if len(linkedin_post) > 3900:  # Leave room for header
+        await _send_text_in_chunks(bot, chat_id, linkedin_post, 3900)
+    else:
+        await _send_message_with_fallback(bot, chat_id, linkedin_post, ParseMode.HTML)
+
+
+def send_linkedin_post_sync(date_str):
+    """Synchronous wrapper for sending LinkedIn post."""
+    asyncio.run(send_linkedin_post_via_telegram(date_str))

@@ -29,10 +29,17 @@ def fetch_feed(url):
         return None
 
 
-def fetch_articles(days=7):
-    """Fetch articles from RSS feeds for the last 'days' days."""
-    since_date = get_start_of_day(days)
-    to_date = get_start_of_day(0)
+def fetch_articles(days=7, target_dates=None):
+    """Fetch articles from RSS feeds. If target_dates is provided, filter for those dates; otherwise fetch for last 'days' days."""
+    if target_dates:
+        # Fetch articles from a wide range to capture the target dates, then filter
+        since_date = datetime.now() - timedelta(
+            days=90
+        )  # Fetch last 90 days to be safe
+        to_date = get_start_of_day(0)
+    else:
+        since_date = get_start_of_day(days)
+        to_date = get_start_of_day(0)
     all_articles = []
 
     for source_url in SOURCES:
@@ -71,6 +78,14 @@ def fetch_articles(days=7):
         if date_str not in articles_by_date:
             articles_by_date[date_str] = []
         articles_by_date[date_str].append(article)
+
+    # If target_dates specified, filter to only those dates
+    if target_dates:
+        articles_by_date = {
+            date: articles
+            for date, articles in articles_by_date.items()
+            if date in target_dates
+        }
 
     # Save to files
     for date_str, articles in articles_by_date.items():

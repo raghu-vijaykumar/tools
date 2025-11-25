@@ -31,7 +31,6 @@ class KnowledgeIndexer:
         self.chroma_client = chromadb.PersistentClient(
             path=str(self.folder_path / ".chroma")
         )
-        self.collection = self.chroma_client.get_or_create_collection("knowledge_base")
 
     def _get_embeddings(self):
         """Get embeddings model."""
@@ -54,8 +53,8 @@ class KnowledgeIndexer:
 
     def _should_index_file(self, file_path: Path) -> bool:
         """Check if file should be indexed (skip hidden, tmp, etc.)."""
-        # Skip hidden files and directories
-        if file_path.name.startswith("."):
+        # Skip hidden files and directories (including files inside hidden directories)
+        if any(part.startswith(".") for part in file_path.parts):
             return False
 
         # Skip common non-content files
@@ -144,9 +143,10 @@ class KnowledgeIndexer:
         # Clear existing index if re-indexing
         try:
             self.chroma_client.delete_collection("knowledge_base")
-            self.collection = self.chroma_client.create_collection("knowledge_base")
         except:
             pass
+
+        self.collection = self.chroma_client.create_collection("knowledge_base")
 
         # Embed and store
         texts = [doc["content"] for doc in chunked_docs]
@@ -188,7 +188,6 @@ class KnowledgeRetriever:
         self.chroma_client = chromadb.PersistentClient(
             path=str(self.folder_path / ".chroma")
         )
-        self.collection = self.chroma_client.get_collection("knowledge_base")
         self.embeddings = get_embeddings(
             provider=embedding_provider, model=embedding_model
         )
@@ -196,8 +195,9 @@ class KnowledgeRetriever:
     def retrieve(self, query: str, top_k: int = 5) -> List[Dict]:
         """Retrieve relevant documents for a query."""
         query_embedding = self.embeddings.embed_query(query)
+        collection = self.chroma_client.get_collection("knowledge_base")
 
-        results = self.collection.query(
+        results = collection.query(
             query_embeddings=[query_embedding],
             n_results=top_k,
             include=["documents", "metadatas", "distances"],
@@ -220,7 +220,8 @@ class KnowledgeRetriever:
     def is_indexed(self) -> bool:
         """Check if the knowledge base has been indexed."""
         try:
-            count = self.collection.count()
+            collection = self.chroma_client.get_collection("knowledge_base")
+            count = collection.count()
             return count > 0
         except:
             return False

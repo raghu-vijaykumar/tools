@@ -117,6 +117,10 @@ class FeedbackLoop:
         # Retrieve relevant references
         references = self._retrieve_references(idea)
         print(f"Retrieved {len(references)} relevant references")
+        for i, ref in enumerate(references, 1):
+            print(f"  Reference {i}: {ref['filepath']} (chunk {ref['chunk_id']})")
+            print(f"    {ref['content'][:200]}...")
+            print()
 
         # Generate initial draft
         draft = self.writer.generate_initial_draft(
