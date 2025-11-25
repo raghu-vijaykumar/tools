@@ -13,9 +13,14 @@ from newsletter.summarizer import (
     summarize_articles_for_date,
     generate_combined_articles_markdown,
     generate_linkedin_post_for_date,
+    generate_linkedin_post_for_summary,
 )
 from .audio import generate_summaries_audio
-from common.telegram import send_summaries_sync, send_linkedin_post_sync
+from common.telegram import (
+    send_summaries_sync,
+    send_linkedin_post_sync,
+    send_linkedin_post_content_sync,
+)
 from common.config import get_date_str, get_days_ago
 
 
