@@ -64,9 +64,6 @@ def run_newsletter(
         # Generate combined articles markdown
         generate_combined_articles_markdown(date_str)
 
-        # Generate LinkedIn post
-        generate_linkedin_post_for_date(date_str, provider)
-
         if summaries:
             # Generate combined summaries audio if not skipping
             if not no_audio:
@@ -77,9 +74,25 @@ def run_newsletter(
             send_summaries_sync(date_str, no_audio=no_audio)
             logging.info("Sent summaries via Telegram.")
 
-            # Send LinkedIn post via Telegram
-            send_linkedin_post_sync(date_str)
-            logging.info("Sent LinkedIn post via Telegram.")
+            # Generate and send LinkedIn post for each article
+            for summary in summaries:
+                linkedin_post = generate_linkedin_post_for_summary(
+                    summary["title"],
+                    summary["summary"],
+                    summary["link"],
+                    date_str,
+                    provider,
+                )
+                send_linkedin_post_content_sync(summary["title"], linkedin_post)
+                logging.info(f"Sent LinkedIn post for: {summary['title']}")
+
+            # # Generate LinkedIn post for the day (commented out)
+            # generate_linkedin_post_for_date(date_str, provider)
+            # logging.info("Generated daily LinkedIn post.")
+
+            # # Send LinkedIn post via Telegram
+            # send_linkedin_post_sync(date_str)
+            # logging.info("Sent daily LinkedIn post via Telegram.")
 
     # Clean up data directory if requested
     if cleanup:

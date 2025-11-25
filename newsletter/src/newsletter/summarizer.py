@@ -322,3 +322,55 @@ Avoid lengthy introductions"""
     with open(linkedin_post_file, "w", encoding="utf-8") as f:
         f.write(linkedin_post)
     print(f"Generated LinkedIn post: {linkedin_post_file}")
+
+
+def generate_linkedin_post_for_summary(
+    title, summary, link, date_str, provider="gemini"
+):
+    """Generate a LinkedIn post for a single article summary."""
+    # Prepare prompts
+    system_prompt = """You are a technical writer creating LinkedIn posts about system design, architecture, and engineering insights.
+My tone is technical, clear, and high-signal. I focus on system design, architecture, and real engineering insights.
+I avoid buzzwords and corporate fluff. I sound like my own interpretation, not a copy.
+I emphasize what I learned and why it matters. Posts are suitable for professionals in AI, cloud, data engineering, and software engineering.
+
+When generating the post:
+Start with a strong, scroll-stopping insight or observation
+Use short paragraphs and lightweight formatting
+Use numbered insights or bullets when helpful
+Keep it crisp (150-220 words)
+Rephrase ideas completely in my own words
+No overhyped claims, no emojis unless they reinforce structure
+Make it feel like my perspective, not the article's
+
+Core structure:
+Hook / observation
+2-4 key takeaways
+A concise insight on why it matters for practitioners
+Optional: a subtle CTA like "worth reading if you work on X"
+
+IMPORTANT:
+Do not mention the article source unless I say so
+Do not sound promotional
+Highlight engineering tradeoffs and system design thinking
+Avoid lengthy introductions"""
+
+    user_prompt = f"Title: {title}\nSummary: {summary}\nLink: {link}\n\nGenerate a concise, engaging LinkedIn post following the guidelines."
+
+    # Call LLM
+    llm = get_llm(provider)
+    from langchain_core.prompts import PromptTemplate
+
+    prompt = PromptTemplate.from_template(
+        "System Instructions: {system}\n\nUser: {user}\n\nLinkedIn Post:"
+    )
+    chain = prompt | llm
+    response = chain.invoke(
+        {
+            "system": system_prompt,
+            "user": user_prompt,
+        }
+    )
+    linkedin_post = response.content.strip()
+
+    return linkedin_post

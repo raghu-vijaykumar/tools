@@ -173,3 +173,26 @@ async def send_linkedin_post_via_telegram(date_str):
 def send_linkedin_post_sync(date_str):
     """Synchronous wrapper for sending LinkedIn post."""
     asyncio.run(send_linkedin_post_via_telegram(date_str))
+
+
+async def send_linkedin_post_content_via_telegram(title, post_content):
+    """Send a LinkedIn post content for a specific article via Telegram."""
+    bot_token = get_telegram_bot_token()
+    chat_id = get_telegram_chat_id()
+    bot = Bot(token=bot_token)
+
+    # Send header
+    await _send_message_with_fallback(
+        bot, chat_id, f"*📝 LinkedIn Post - {title}*\n\n", ParseMode.MARKDOWN
+    )
+
+    # Send the LinkedIn post, handling length limits
+    if len(post_content) > 3900:  # Leave room for header
+        await _send_text_in_chunks(bot, chat_id, post_content, 3900)
+    else:
+        await _send_message_with_fallback(bot, chat_id, post_content, ParseMode.HTML)
+
+
+def send_linkedin_post_content_sync(title, post_content):
+    """Synchronous wrapper for sending LinkedIn post content."""
+    asyncio.run(send_linkedin_post_content_via_telegram(title, post_content))
