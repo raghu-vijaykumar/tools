@@ -28,44 +28,27 @@ def callback():
 
 @newsletter_app.command("run")
 def newsletter_run(
-    days: int = typer.Option(1, help="Number of days to fetch (default: 1)"),
-    dates: str = typer.Option(
-        None,
-        help="Comma-separated dates or ranges (e.g., '2023-01-01,2023-01-02' or '2023-01-01 to 2023-01-03')",
-    ),
     provider: str = typer.Option("gemini", help="LLM provider to use"),
     tts: str = typer.Option("gtts", help="TTS model or provider to use"),
-    cleanup: bool = typer.Option(True, help="Clean up data directory after processing"),
     no_audio: bool = typer.Option(False, help="Skip audio generation"),
+    no_linkedin: bool = typer.Option(False, help="Skip LinkedIn posting"),
 ):
     """
     Run the newsletter fetcher.
     """
-    from common.config import parse_dates
-
-    import newsletter.main as nl
-
-    # Determine dates to process
-    dates_list = None
-    if dates:
-        dates_list = parse_dates(dates)
-        logging.info(
-            f"Executing newsletter run command for specific dates: {dates_list}, provider={provider}, tts={tts}, cleanup={cleanup}, no_audio={no_audio}"
-        )
-    else:
-        logging.info(
-            f"Executing newsletter run command for last {days} days, provider={provider}, tts={tts}, cleanup={cleanup}, no_audio={no_audio}"
-        )
+    logging.info(
+        f"Executing newsletter run command, provider={provider}, tts={tts}, no_audio={no_audio}, no_linkedin={no_linkedin}"
+    )
 
     try:
+        import newsletter.main as nl
+
         # Call the newsletter run_newsletter function directly
         nl.run_newsletter(
-            days=days,
-            dates_list=dates_list,
             provider=provider,
             tts=tts,
-            cleanup=cleanup,
             no_audio=no_audio,
+            no_linkedin=no_linkedin,
         )
     except Exception as e:
         typer.echo(f"Error running newsletter: {e}", err=True)

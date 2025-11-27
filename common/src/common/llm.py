@@ -91,7 +91,8 @@ def summarize_article(article, provider="gemini"):
         with open(content_path, "r", encoding="utf-8") as f:
             content = f.read()
     else:
-        content = article.get("summary", "")
+        # Check for content field first, then fall back to summary
+        content = article.get("content", article.get("summary", ""))
 
     prompt = PromptTemplate.from_template(
         "Provide a deeper summary of the following article in 3-5 sentences, addressing key questions like what the article is about, why it matters, and how it works or what it achieves:\n\nTitle: {title}\n\nContent: {content}\n\nSummary:"

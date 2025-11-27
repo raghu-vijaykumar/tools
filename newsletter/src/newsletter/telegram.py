@@ -3,7 +3,8 @@ import asyncio
 import json
 from telegram import Bot
 from telegram.error import TelegramError
-from .config import get_telegram_bot_token, get_telegram_chat_id, DATA_DIR
+from .config import get_telegram_bot_token, get_telegram_chat_id
+from common.config import DATA_DIR
 
 
 async def _send_message_with_fallback(bot, chat_id, text, parse_mode):
@@ -200,6 +201,68 @@ async def send_articles_via_telegram(date_str):
 def send_articles_sync(date_str):
     """Synchronous wrapper for sending articles via Telegram."""
     asyncio.run(send_articles_via_telegram(date_str))
+
+
+def send_summary_sync(article, summary, no_audio=False):
+    """Send a single article summary via Telegram."""
+    try:
+        bot_token = get_telegram_bot_token()
+        chat_id = get_telegram_chat_id()
+
+        # Check if credentials are set (not placeholder values)
+        if (
+            bot_token == "your_telegram_bot_token_here"
+            or chat_id == "your_telegram_chat_id_here"
+        ):
+            print("Telegram credentials not configured. Skipping Telegram send.")
+            print(
+                "Please set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in your .env file"
+            )
+            return
+
+        import asyncio
+
+        asyncio.run(
+            _send_single_summary_via_telegram(
+                article, summary, bot_token, chat_id, no_audio
+            )
+        )
+
+    except Exception as e:
+        print(f"Error sending summary via Telegram: {e}")
+
+
+async def _send_single_summary_via_telegram(
+    article, summary, bot_token, chat_id, no_audio
+):
+    """Send a single article summary via Telegram."""
+    bot = Bot(token=bot_token)
+
+    # Create message text
+    title = article["title"]
+    link = article["link"]
+    published = article.get("published", "")
+    source = article.get("source", "")
+
+    message = f"📰 **{title}**\n\n{summary}\n\n📅 Published: {published}\n🏢 Source: {source}\n\n[Read full article]({link})"
+
+    # Send message
+    await _send_message_with_fallback(bot, chat_id, message, "Markdown")
+
+    # Send audio if available and not skipped
+    if not no_audio:
+        audio_dir = os.path.join(DATA_DIR, "audio")
+        audio_file = os.path.join(audio_dir, f"summary_{article['id']}.mp3")
+        if os.path.exists(audio_file):
+            with open(audio_file, "rb") as audio:
+                await bot.send_audio(
+                    chat_id=chat_id,
+                    audio=audio,
+                    title=f"Summary: {title}",
+                    caption="🎧 Audio version of the article summary",
+                )
+
+    print(f"Sent summary for article: {title}")
 
 
 def send_digest_sync(date_str):

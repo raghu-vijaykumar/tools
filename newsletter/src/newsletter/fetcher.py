@@ -1,11 +1,9 @@
 import feedparser
-import json
-import os
 import requests
-import ssl
 import certifi
-from datetime import datetime
-from .config import SOURCES, DATA_DIR, get_date_str, get_days_ago, get_start_of_day
+from datetime import datetime, timedelta
+from .config import SOURCES
+from .db import insert_article, article_exists, init_db
 
 
 def fetch_feed(url):
@@ -29,21 +27,16 @@ def fetch_feed(url):
         return None
 
 
-def fetch_articles(days=7, target_dates=None):
-    """Fetch articles from RSS feeds. If target_dates is provided, filter for those dates; otherwise fetch for last 'days' days."""
-    if target_dates:
-        # Fetch articles from a wide range to capture the target dates, then filter
-        since_date = datetime.now() - timedelta(
-            days=90
-        )  # Fetch last 90 days to be safe
-        to_date = get_start_of_day(0)
-    else:
-        since_date = get_start_of_day(days)
-        to_date = get_start_of_day(0)
-    all_articles = []
+def fetch_new_articles():
+    """Fetch new articles from RSS feeds and store in database."""
+    init_db()  # Ensure database is initialized
+    new_articles = []
+
+    # Fetch from last 14 days to get recent content
+    since_date = datetime.now() - timedelta(days=14)
 
     for source_url in SOURCES:
-        print(f"Fetching rss from {source_url}")
+        print(f"Fetching RSS from {source_url}")
         feed = fetch_feed(source_url)
         if feed is None:
             continue  # Skip this source if fetch failed
@@ -57,58 +50,37 @@ def fetch_articles(days=7, target_dates=None):
             else:
                 continue  # Skip if no date
 
-            if since_date <= published < to_date:
-                article = {
-                    "title": entry.title,
-                    "link": entry.link,
-                    "published": published.isoformat(),
-                    "content": (
-                        getattr(entry, "content", [{}])[0].get("value", "")
-                        if hasattr(entry, "content")
-                        else ""
-                    ),
-                    "source": source_url,
-                }
-                all_articles.append(article)
+            # Only process recent articles
+            if published < since_date:
+                continue
 
-    # Group by date
-    articles_by_date = {}
-    for article in all_articles:
-        date_str = get_date_str(datetime.fromisoformat(article["published"]))
-        if date_str not in articles_by_date:
-            articles_by_date[date_str] = []
-        articles_by_date[date_str].append(article)
+            # Check if article already exists
+            if article_exists(entry.link):
+                continue  # Skip existing articles
 
-    # If target_dates specified, filter to only those dates
-    if target_dates:
-        articles_by_date = {
-            date: articles
-            for date, articles in articles_by_date.items()
-            if date in target_dates
-        }
+            # Extract content from RSS
+            content = (
+                getattr(entry, "content", [{}])[0].get("value", "")
+                if hasattr(entry, "content")
+                else ""
+            )
 
-    # Save to files
-    for date_str, articles in articles_by_date.items():
-        date_dir = os.path.join(DATA_DIR, date_str)
-        os.makedirs(date_dir, exist_ok=True)
-        content_dir = os.path.join(date_dir, "content")
-        os.makedirs(content_dir, exist_ok=True)
+            # Insert new article into database
+            article_id = insert_article(
+                title=entry.title,
+                link=entry.link,
+                published=published.isoformat(),
+                content=content,
+                source=source_url,
+            )
 
-        for article in articles:
-            content = article.pop("content", "")
-            if content:
-                # Create safe filename
-                safe_title = "".join(
-                    c for c in article["title"] if c.isalnum() or c in (" ", "-", "_")
-                ).rstrip()
-                safe_title = safe_title.replace(" ", "_").replace("-", "_")
-                content_file = os.path.join(content_dir, f"{safe_title}.txt")
-                with open(content_file, "w", encoding="utf-8") as f:
-                    f.write(content)
-                article["content_path"] = content_file
+            if article_id:
+                print(f"Added new article: {entry.title}")
+                # Get the full article data from DB
+                from .db import get_article_by_id
 
-        articles_file = os.path.join(date_dir, "articles.json")
-        with open(articles_file, "w") as f:
-            json.dump(articles, f, indent=2)
+                article_data = get_article_by_id(article_id)
+                if article_data:
+                    new_articles.append(article_data)
 
-    return articles_by_date
+    return new_articles

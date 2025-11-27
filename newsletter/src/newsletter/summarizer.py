@@ -1,9 +1,7 @@
-import json
-import os
 import requests
 from bs4 import BeautifulSoup
-from common.llm import summarize_article, get_llm
-from common.config import DATA_DIR
+from common.llm import summarize_article
+from .db import mark_article_summarized, log_processing_action, update_article_content
 
 
 def fetch_article_content(url):
@@ -374,3 +372,47 @@ Avoid lengthy introductions"""
     linkedin_post = response.content.strip()
 
     return linkedin_post
+
+
+def process_article(article, provider="gemini"):
+    """Process a single article: fetch content, summarize, and return summary."""
+    print(f"Processing article: {article['title']}")
+
+    # Fetch full content if RSS content is insufficient
+    content = article.get("content", "")
+    if not content or len(content) < 200:
+        print(f"Fetching full content from URL: {article['link']}")
+        content = fetch_article_content(article["link"])
+        if content:
+            # Update content in database and mark as fetched
+            update_article_content(article["id"], content)
+            log_processing_action(article["id"], "content_fetched")
+
+    # Prepare article data for summarization
+    article_for_summary = {
+        "title": article["title"],
+        "link": article["link"],
+        "content": content,  # Pass content in the content field as expected by LLM
+        "published": article.get("published", ""),
+        "source": article.get("source", ""),
+    }
+
+    try:
+        print(f"Summarizing: {article['title']}")
+        summary = summarize_article(article_for_summary, provider)
+        print(f"Summary generated for: {article['title']}")
+
+        # Mark article as summarized in DB
+        success = mark_article_summarized(article["id"], summary, provider)
+        if success:
+            log_processing_action(article["id"], "summarized")
+            print(f"Article processed and stored: {article['title']}")
+            return summary
+        else:
+            print(f"Failed to update database for: {article['title']}")
+            return None
+
+    except Exception as e:
+        print(f"Error processing article {article['title']}: {e}")
+        log_processing_action(article["id"], f"error: {str(e)}")
+        return None

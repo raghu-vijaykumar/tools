@@ -8,20 +8,12 @@ from datetime import datetime, timedelta
 # Add src to path for direct execution
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
-from newsletter.fetcher import fetch_articles
-from newsletter.summarizer import (
-    summarize_articles_for_date,
-    generate_combined_articles_markdown,
-    generate_linkedin_post_for_date,
-    generate_linkedin_post_for_summary,
-)
-from .audio import generate_summaries_audio
-from common.telegram import (
-    send_summaries_sync,
-    send_linkedin_post_sync,
-    send_linkedin_post_content_sync,
-)
-from common.config import get_date_str, get_days_ago
+from newsletter.fetcher import fetch_new_articles
+from newsletter.summarizer import process_article, generate_linkedin_post_for_summary
+from .audio import generate_summary_audio
+from .telegram import send_summary_sync
+from common.telegram import send_linkedin_post_content_sync
+from .db import get_unsummarized_articles, log_processing_action, update_article_status
 
 
 def cleanup_data_directory():
@@ -40,77 +32,88 @@ def cleanup_data_directory():
 
 
 def run_newsletter(
-    days=1, dates_list=None, provider="gemini", tts="gtts", cleanup=True, no_audio=False
+    provider="gemini",
+    tts="gtts",
+    no_audio=False,
+    no_linkedin=False,
 ):
-    """Fetch, summarize, and generate audio for daily tech newsletters."""
-    if dates_list:
-        logging.info(f"Processing specific dates: {dates_list}...")
-        # Fetch articles for specific dates
-        articles_by_date = {}
-        for date_str in dates_list:
-            articles_for_date = fetch_articles(None, target_dates=[date_str])
-            articles_by_date.update(articles_for_date)
-    else:
-        logging.info(f"Processing last {days} days...")
-        articles_by_date = fetch_articles(days)
+    """Fetch new articles from RSS feeds and process unsummarized articles sequentially."""
+    logging.info("Starting newsletter processing...")
 
-    logging.info(f"Fetched articles for {len(articles_by_date)} dates.")
+    # Fetch new articles from RSS feeds
+    new_articles_count = len(fetch_new_articles())
+    logging.info(f"Fetched {new_articles_count} new articles from RSS feeds.")
 
-    # Process each date
-    for date_str in sorted(articles_by_date.keys()):
-        logging.info(f"Processing {date_str}...")
+    # Get all unsummarized articles (including newly fetched ones)
+    from .db import get_unsummarized_articles
 
-        # Summarize and generate markdown articles
-        summaries = summarize_articles_for_date(date_str, provider)
+    articles_to_process = get_unsummarized_articles()
+    logging.info(f"Found {len(articles_to_process)} articles to process.")
+
+    if not articles_to_process:
+        logging.info("No articles to process. All caught up!")
+        return
+
+    # Process each unsummarized article sequentially
+    processed_count = 0
+    for article in articles_to_process:
         logging.info(
-            f"Summarized {len(summaries)} articles and generated markdown articles."
+            f"Processing article {processed_count + 1}/{len(articles_to_process)}: {article['title']}"
         )
 
-        # Generate combined articles markdown
-        generate_combined_articles_markdown(date_str)
+        # Process article: fetch content and generate summary
+        summary = process_article(article, provider)
+        if not summary:
+            logging.error(f"Failed to process article: {article['title']}")
+            continue
 
-        if summaries:
-            # Generate combined summaries audio if not skipping
-            if not no_audio:
-                generate_summaries_audio(date_str, tts)
-                logging.info("Generated summaries audio.")
+        # Generate audio if not skipping
+        if not no_audio:
+            try:
+                generate_summary_audio(article["id"], summary, tts)
+                update_article_status(article["id"], "audio_generated")
+                log_processing_action(article["id"], "audio_generated")
+                logging.info(f"Generated audio for: {article['title']}")
+            except Exception as e:
+                logging.error(f"Failed to generate audio for {article['title']}: {e}")
 
-            # Send summaries via Telegram
-            send_summaries_sync(date_str, no_audio=no_audio)
-            logging.info("Sent summaries via Telegram.")
+        # Send summary via Telegram
+        try:
+            send_summary_sync(article, summary, no_audio=no_audio)
+            update_article_status(article["id"], "telegram_sent")
+            log_processing_action(article["id"], "telegram_sent")
+            logging.info(f"Sent Telegram message for: {article['title']}")
+        except Exception as e:
+            logging.error(f"Failed to send Telegram for {article['title']}: {e}")
 
-            # Generate and send LinkedIn post for each article
-            for summary in summaries:
+        # Generate and send LinkedIn post if not skipping
+        if not no_linkedin:
+            try:
                 linkedin_post = generate_linkedin_post_for_summary(
-                    summary["title"],
-                    summary["summary"],
-                    summary["link"],
-                    date_str,
+                    article["title"],
+                    summary,
+                    article["link"],
+                    article.get("published", "")[:10],  # date string
                     provider,
                 )
-                send_linkedin_post_content_sync(summary["title"], linkedin_post)
-                logging.info(f"Sent LinkedIn post for: {summary['title']}")
+                send_linkedin_post_content_sync(article["title"], linkedin_post)
+                update_article_status(article["id"], "linkedin_posted")
+                log_processing_action(article["id"], "linkedin_posted")
+                logging.info(f"Posted to LinkedIn for: {article['title']}")
+            except Exception as e:
+                logging.error(f"Failed to post LinkedIn for {article['title']}: {e}")
+        else:
+            logging.info("Skipped LinkedIn posting.")
 
-            # # Generate LinkedIn post for the day (commented out)
-            # generate_linkedin_post_for_date(date_str, provider)
-            # logging.info("Generated daily LinkedIn post.")
+        processed_count += 1
+        logging.info(f"Completed processing article: {article['title']}")
 
-            # # Send LinkedIn post via Telegram
-            # send_linkedin_post_sync(date_str)
-            # logging.info("Sent daily LinkedIn post via Telegram.")
-
-    # Clean up data directory if requested
-    if cleanup:
-        cleanup_data_directory()
-        logging.info("Cleaned up data directory.")
-    else:
-        logging.info("Skipped data directory cleanup.")
-
-    logging.info("Newsletter processing completed successfully.")
+    logging.info(
+        f"Newsletter processing completed. Processed {processed_count} articles."
+    )
 
 
 @click.command()
-@click.option("--days", default=1, help="Number of days to fetch (default: 1)")
 @click.option(
     "--provider",
     default="gemini",
@@ -122,14 +125,12 @@ def run_newsletter(
     default="gtts",
     help="TTS model or provider to use (default: gtts, use 'microsoft/speecht5_tts' for local model)",
 )
-@click.option(
-    "--cleanup/--no-cleanup",
-    default=True,
-    help="Clean up data directory after processing (default: cleanup)",
-)
 @click.option("--no-audio", is_flag=True, help="Skip audio generation")
-def main(days, provider, tts, cleanup, no_audio):
-    run_newsletter(days, provider, tts, cleanup, no_audio=no_audio)
+@click.option("--no-linkedin", is_flag=True, help="Skip LinkedIn posting")
+def main(provider, tts, no_audio, no_linkedin):
+    run_newsletter(
+        provider=provider, tts=tts, no_audio=no_audio, no_linkedin=no_linkedin
+    )
 
 
 if __name__ == "__main__":
