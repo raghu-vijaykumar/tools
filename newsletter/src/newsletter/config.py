@@ -1,30 +1,5 @@
 from common.config import *
+from .sources import RSS_SOURCES, SCRAPING_SOURCES, ALL_SOURCES
 
-# Sources: list of RSS feed URLs for tech company blogs
-SOURCES = [
-    "https://developers.googleblog.com/feeds/posts/default",
-    "https://engineering.fb.com/feed/",
-    "https://medium.com/feed/airbnb-engineering",
-    "https://engineering.linkedin.com/blog.rss.html",
-    "https://engineering.atspotify.com/feed/",
-    "https://dropbox.tech/feed",
-    "https://slack.engineering/feed",
-    "https://medium.com/feed/pinterest-engineering",
-    "https://devblogs.microsoft.com/feed/",
-    "https://aws.amazon.com/blogs/aws/feed/",
-    "https://github.blog/category/engineering/feed/",
-    "https://blog.cloudflare.com/rss/",
-    "https://www.databricks.com/feed",
-    "https://www.atlassian.com/blog/artificial-intelligence/feed",
-    "https://discord.com/blog/rss.xml",
-    "https://www.canva.dev/blog/engineering/feed",
-    "https://doordash.engineering/feed/",
-    "https://engineering.grab.com/feed",
-    "https://about.gitlab.com/atom.xml",
-    "https://www.heroku.com/blog/feed/",
-    "https://developer.nvidia.com/blog/feed/",
-    "https://medium.com/feed/adobetech",
-    "https://engineering.salesforce.com/feed/",
-    "https://dropbox.tech/security/feed",
-    "https://developer.squareup.com/blog/rss.xml",
-]
+# Sources: list of RSS feed URLs for tech company blogs (backward compatibility)
+SOURCES = ALL_SOURCES

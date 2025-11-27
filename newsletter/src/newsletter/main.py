@@ -36,19 +36,23 @@ def run_newsletter(
     tts="gtts",
     no_audio=False,
     no_linkedin=False,
+    limit_website=None,
 ):
-    """Fetch new articles from RSS feeds and process unsummarized articles sequentially."""
+    """Fetch new articles from RSS feeds and scraping sources, then process unsummarized articles sequentially."""
     logging.info("Starting newsletter processing...")
 
-    # Fetch new articles from RSS feeds
-    new_articles_count = len(fetch_new_articles())
-    logging.info(f"Fetched {new_articles_count} new articles from RSS feeds.")
+    # Fetch new articles from RSS feeds and scraping sources
+    new_articles_count = len(fetch_new_articles(limit_website=limit_website))
+    if limit_website:
+        logging.info(f"Fetched {new_articles_count} new articles (limited to {limit_website}).")
+    else:
+        logging.info(f"Fetched {new_articles_count} new articles from all sources.")
 
     # Get all unsummarized articles (including newly fetched ones)
     from .db import get_unsummarized_articles
 
     articles_to_process = get_unsummarized_articles()
-    logging.info(f"Found {len(articles_to_process)} articles to process.")
+    logging.info(f"Found {len(articles_to_process)} unsummarized articles to process.")
 
     if not articles_to_process:
         logging.info("No articles to process. All caught up!")
@@ -127,9 +131,10 @@ def run_newsletter(
 )
 @click.option("--no-audio", is_flag=True, help="Skip audio generation")
 @click.option("--no-linkedin", is_flag=True, help="Skip LinkedIn posting")
-def main(provider, tts, no_audio, no_linkedin):
+@click.option("--limit-website", help="Limit fetching to specific website (e.g., 'uber' for scraping, or 'github' for RSS)")
+def main(provider, tts, no_audio, no_linkedin, limit_website):
     run_newsletter(
-        provider=provider, tts=tts, no_audio=no_audio, no_linkedin=no_linkedin
+        provider=provider, tts=tts, no_audio=no_audio, no_linkedin=no_linkedin, limit_website=limit_website
     )
 
 

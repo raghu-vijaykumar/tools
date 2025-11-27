@@ -242,3 +242,15 @@ def update_article_content(article_id, content):
         return False
     finally:
         conn.close()
+
+
+def get_all_article_urls():
+    """Get all article URLs to avoid duplicates."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT link FROM articles")
+    urls = cursor.fetchall()
+
+    conn.close()
+    return [url[0] for url in urls]

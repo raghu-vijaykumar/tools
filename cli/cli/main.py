@@ -32,12 +32,13 @@ def newsletter_run(
     tts: str = typer.Option("gtts", help="TTS model or provider to use"),
     no_audio: bool = typer.Option(False, help="Skip audio generation"),
     no_linkedin: bool = typer.Option(False, help="Skip LinkedIn posting"),
+    limit_website: str = typer.Option(None, help="Limit fetching to specific website (e.g., 'uber' for scraping, or 'github' for RSS)"),
 ):
     """
     Run the newsletter fetcher.
     """
     logging.info(
-        f"Executing newsletter run command, provider={provider}, tts={tts}, no_audio={no_audio}, no_linkedin={no_linkedin}"
+        f"Executing newsletter run command, provider={provider}, tts={tts}, no_audio={no_audio}, no_linkedin={no_linkedin}, limit_website={limit_website}"
     )
 
     try:
@@ -49,6 +50,7 @@ def newsletter_run(
             tts=tts,
             no_audio=no_audio,
             no_linkedin=no_linkedin,
+            limit_website=limit_website,
         )
     except Exception as e:
         typer.echo(f"Error running newsletter: {e}", err=True)
