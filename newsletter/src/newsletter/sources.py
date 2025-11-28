@@ -63,6 +63,110 @@ SCRAPING_SOURCES = [
             "exclude_prefixes": ["https://medium.com/pinterest-engineering/subpage/"]
         }
     },
+    {
+        "name": "lyft",
+        "base_url": "https://eng.lyft.com/",
+        "config": {
+            "article_body_selector": "article, .post-content, .blog-post, main",
+            "url_prefixes": ["https://eng.lyft.com/"]
+        }
+    },
+    {
+        "name": "facebook_research",
+        "base_url": "https://research.facebook.com/publications/",
+        "config": {
+            "article_body_selector": "article, .post-content, .blog-post, main",
+            "url_prefixes": ["https://research.facebook.com/publications/"]
+        }
+    },
+    {
+        "name": "google_research",
+        "base_url": "https://research.google/blog/",
+        "config": {
+            "article_body_selector": "article, .post-content, .blog-post, main",
+            "url_prefixes": ["https://research.google/blog/"]
+        }
+    },
+    {
+        "name": "netflix",
+        "base_url": "https://netflixtechblog.com/",
+        "config": {
+            "article_body_selector": "article, .post-content, .blog-post, main",
+            "url_prefixes": ["https://netflixtechblog.com/"]
+        }
+    },
+    {
+        "name": "stripe",
+        "base_url": "https://stripe.com/blog/engineering",
+        "config": {
+            "article_body_selector": "article, .post-content, .blog-post, main",
+            "url_prefixes": ["https://stripe.com/blog"]
+        }
+    },
+    {
+        "name": "openai",
+        "base_url": "https://developers.openai.com/blog/",
+        "config": {
+            "article_body_selector": "article, .post-content, .blog-post, main",
+            "url_prefixes": ["https://developers.openai.com/blog/"]
+        }
+    },
+    {
+        "name": "snowflake",
+        "base_url": "https://www.snowflake.com/en/engineering-blog/",
+        "config": {
+            "article_body_selector": "article, .post-content, .blog-post, main",
+            "url_prefixes": ["https://www.snowflake.com/en/engineering-blog/"]
+        }
+    },
+    {
+        "name": "palantir",
+        "base_url": "https://blog.palantir.com/",
+        "config": {
+            "article_body_selector": "article, .post-content, .blog-post, main",
+            "url_prefixes": ["https://blog.palantir.com/"]
+        }
+    },
+    {
+        "name": "azure",
+        "base_url": "https://azure.microsoft.com/en-us/blog/",
+        "config": {
+            "article_body_selector": "article, .post-content, .blog-post, main",
+            "url_prefixes": ["https://azure.microsoft.com/en-us/blog/"]
+        }
+    },
+    {
+        "name": "twosigma",
+        "base_url": "https://www.twosigma.com/topic/data-science/",
+        "config": {
+            "article_body_selector": "article, .post-content, .blog-post, main",
+            "url_prefixes": ["https://www.twosigma.com/articles"]
+        }
+    },
+    {
+        "name": "twosigma_engineering",
+        "base_url": "https://www.twosigma.com/topic/engineering/",
+        "config": {
+            "article_body_selector": "article, .post-content, .blog-post, main",
+            "url_prefixes": ["https://www.twosigma.com/articles"]
+        }
+    },
+    {
+        "name": "janestreet",
+        "base_url": "https://blog.janestreet.com/",
+        "config": {
+            "article_body_selector": "article, .post-content, .blog-post, main",
+            "url_prefixes": ["https://blog.janestreet.com/"]
+        }
+    },
+    {
+        "name": "anthropic",
+        "base_url": "https://www.anthropic.com/engineering",
+        "config": {
+            "article_body_selector": "article, .post-content, .blog-post, main",
+            "url_prefixes": ["https://www.anthropic.com/engineering"]
+        }
+    },
     # Add more scraping sources here as needed
     # {
     #     "name": "example",
