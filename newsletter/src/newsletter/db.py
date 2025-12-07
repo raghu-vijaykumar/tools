@@ -108,6 +108,29 @@ def get_unsummarized_articles():
     return [dict(article) for article in articles]
 
 
+def get_summarized_articles(limit=None):
+    """Get articles that have been summarized."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    query = """
+        SELECT a.*, s.summary
+        FROM articles a
+        JOIN summaries s ON a.id = s.article_id
+        WHERE a.is_summarized = TRUE
+        ORDER BY a.processed_at DESC
+    """
+
+    if limit:
+        query += f" LIMIT {limit}"
+
+    cursor.execute(query)
+    articles = cursor.fetchall()
+
+    conn.close()
+    return [dict(article) for article in articles]
+
+
 def mark_article_summarized(article_id, summary, provider):
     """Mark article as summarized and store summary."""
     conn = get_db_connection()
@@ -254,3 +277,15 @@ def get_all_article_urls():
 
     conn.close()
     return [url[0] for url in urls]
+
+
+def get_article_by_url(url):
+    """Get article by URL."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT * FROM articles WHERE link = ?", (url,))
+    article = cursor.fetchone()
+
+    conn.close()
+    return dict(article) if article else None

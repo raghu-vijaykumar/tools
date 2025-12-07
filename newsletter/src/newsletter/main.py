@@ -66,15 +66,24 @@ def run_newsletter(
         )
 
         # Process article: fetch content and generate summary
-        summary = process_article(article, provider)
-        if not summary:
+        result = process_article(article, provider)
+        if not result:
             logging.error(f"Failed to process article: {article['title']}")
             continue
+
+        # Extract summary data (result is now a dict with summary, categories, full_summary)
+        if isinstance(result, dict):
+            summary_text = result.get("full_summary", result.get("summary", ""))
+            categories = result.get("categories", [])
+        else:
+            # Backward compatibility for string returns
+            summary_text = result
+            categories = []
 
         # Generate audio if not skipping
         if not no_audio:
             try:
-                generate_summary_audio(article["id"], summary, tts)
+                generate_summary_audio(article["id"], summary_text, tts)
                 update_article_status(article["id"], "audio_generated")
                 log_processing_action(article["id"], "audio_generated")
                 logging.info(f"Generated audio for: {article['title']}")
@@ -83,7 +92,7 @@ def run_newsletter(
 
         # Send summary via Telegram
         try:
-            send_summary_sync(article, summary, no_audio=no_audio)
+            send_summary_sync(article, summary_text, no_audio=no_audio)
             update_article_status(article["id"], "telegram_sent")
             log_processing_action(article["id"], "telegram_sent")
             logging.info(f"Sent Telegram message for: {article['title']}")
@@ -95,7 +104,7 @@ def run_newsletter(
             try:
                 linkedin_post = generate_linkedin_post_for_summary(
                     article["title"],
-                    summary,
+                    summary_text,
                     article["link"],
                     article.get("published", "")[:10],  # date string
                     provider,
@@ -117,7 +126,46 @@ def run_newsletter(
     )
 
 
-@click.command()
+def force_send_existing(limit=None, no_audio=False):
+    """Force send all summarized articles to Telegram."""
+    logging.info("Starting force send of existing summarized articles...")
+
+    from .db import get_summarized_articles
+
+    articles_to_send = get_summarized_articles(limit=limit)
+    logging.info(f"Found {len(articles_to_send)} summarized articles to send.")
+
+    if not articles_to_send:
+        logging.info("No summarized articles found to send.")
+        return
+
+    # Send each summarized article to Telegram
+    sent_count = 0
+    for article in articles_to_send:
+        try:
+            logging.info(f"Sending article {sent_count + 1}/{len(articles_to_send)}: {article['title']}")
+
+            # Send summary via Telegram
+            send_summary_sync(article, article["summary"], no_audio=no_audio)
+            update_article_status(article["id"], "telegram_sent")
+            log_processing_action(article["id"], "telegram_sent")
+            logging.info(f"Force sent Telegram message for: {article['title']}")
+
+            sent_count += 1
+
+        except Exception as e:
+            logging.error(f"Failed to force send Telegram for {article['title']}: {e}")
+
+    logging.info(f"Force send completed. Sent {sent_count} articles to Telegram.")
+
+
+@click.group()
+def cli():
+    """Newsletter automation CLI."""
+    pass
+
+
+@cli.command()
 @click.option(
     "--provider",
     default="gemini",
@@ -132,11 +180,20 @@ def run_newsletter(
 @click.option("--no-audio", is_flag=True, help="Skip audio generation")
 @click.option("--no-linkedin", is_flag=True, help="Skip LinkedIn posting")
 @click.option("--limit-website", help="Limit fetching to specific website (e.g., 'uber' for scraping, or 'github' for RSS)")
-def main(provider, tts, no_audio, no_linkedin, limit_website):
+def run(provider, tts, no_audio, no_linkedin, limit_website):
+    """Run the full newsletter processing pipeline."""
     run_newsletter(
         provider=provider, tts=tts, no_audio=no_audio, no_linkedin=no_linkedin, limit_website=limit_website
     )
 
 
+@cli.command()
+@click.option("--limit", type=int, help="Limit number of articles to send (default: all)")
+@click.option("--no-audio", is_flag=True, help="Skip audio in Telegram messages")
+def send_existing(limit, no_audio):
+    """Force send all summarized articles to Telegram."""
+    force_send_existing(limit=limit, no_audio=no_audio)
+
+
 if __name__ == "__main__":
-    main()
+    cli()

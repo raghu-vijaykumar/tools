@@ -173,6 +173,12 @@ async def send_articles_via_telegram(date_str):
         # Send each article individually with throttling (10 msg/s = 100ms delay)
         for summary in summaries:
             message = f"**{summary['title']}**\n\n{summary['summary']}\n\n[Read more]({summary['link']})"
+
+            # Add categories if available
+            categories = summary.get('categories', [])
+            if categories:
+                message += f"\n\n🏷️ **Categories:** {', '.join(categories)}"
+
             await _send_message_with_fallback(bot, chat_id, message, "Markdown")
             await asyncio.sleep(0.1)  # 100ms delay for throttling
 

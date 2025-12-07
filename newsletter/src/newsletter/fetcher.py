@@ -179,6 +179,15 @@ def fetch_new_articles(limit_website=None):
                     stats["scraping"]["duplicates"] += 1
                     continue
 
+                # Check if article is already summarized before loading content
+                from .db import get_article_by_url
+                existing_article = get_article_by_url(link)
+
+                if existing_article and existing_article.get("is_summarized"):
+                    stats["scraping"]["duplicates"] += 1  # Count as duplicate since already summarized
+                    print(f"Skipping already summarized article: {link}")
+                    continue
+
                 # Extract full article content
                 article_data = scraper.extract_article(link)
 

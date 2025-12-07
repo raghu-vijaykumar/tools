@@ -60,19 +60,36 @@ class BlogScraper:
 
             # First, check exclude prefixes (process exclusions first)
             exclude_prefixes = self.config.get("exclude_prefixes", [])
-            if exclude_prefixes and any(href.startswith(excl_prefix) for excl_prefix in exclude_prefixes):
-                continue  # Skip excluded links
+            excluded = False
+            if exclude_prefixes:
+                for excl_prefix in exclude_prefixes:
+                    if href.startswith(excl_prefix):
+                        logging.info(f"Excluding URL (matches exclude prefix '{excl_prefix}'): {href}")
+                        excluded = True
+                        break
+                if excluded:
+                    continue  # Skip excluded links
 
             # Then filter links based on url_prefixes if provided, otherwise use old logic
             url_prefixes = self.config.get("url_prefixes", [])
             if url_prefixes:
                 # Only include links that start with any of the allowed prefixes and are not the index page
-                if any(href.startswith(prefix) for prefix in url_prefixes) and href != self.root_url:
-                    links.add(href)
+                included = False
+                for prefix in url_prefixes:
+                    if href.startswith(prefix) and href != self.root_url:
+                        links.add(href)
+                        included = True
+                        logging.info(f"Including URL (matches include prefix '{prefix}'): {href}")
+                        break
+                if not included and not excluded:
+                    logging.debug(f"Skipping URL (doesn't match any include prefix): {href}")
             else:
                 # Fallback to old logic: contain blog/engineering and are not the index page
                 if ("blog" in href or "engineering" in href) and href != self.root_url:
                     links.add(href)
+                    logging.info(f"Including URL (fallback logic): {href}")
+                elif not excluded:
+                    logging.debug(f"Skipping URL (doesn't contain blog/engineering): {href}")
 
         logging.info(f"Found {len(links)} article links")
         return list(links)

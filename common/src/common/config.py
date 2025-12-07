@@ -44,14 +44,14 @@ def get_telegram_chat_id():
 # LLM Provider settings
 DEFAULT_LLM_PROVIDER = "gemini"  # Options: "gemini", "groq", "openai"
 GROQ_MODEL = "openai/gpt-oss-120b"
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-2.5-flash"
 OPENAI_MODEL = "gpt-4o"  # Default OpenAI model
 
 # Data directory
 DATA_DIR = "data"
 
 # Rate limiting: requests per minute for LLM
-RATE_LIMIT_RPM = 1  # Adjust as needed
+RATE_LIMIT_RPM = 0.5  # Conservative rate limiting to avoid quota issues
 
 # Rate limiting: requests per minute for gTTS
 TTS_RATE_LIMIT_RPM = 1

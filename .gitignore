@@ -41,3 +41,4 @@ Thumbs.db
 writer/.coverage
 .coverage
 knowledge/*
+htmlcov/

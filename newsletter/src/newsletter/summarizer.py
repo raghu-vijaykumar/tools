@@ -1,6 +1,9 @@
+import os
+import json
 import requests
 from bs4 import BeautifulSoup
-from common.llm import summarize_article
+from common.llm import summarize_article, classify_and_summarize_article
+from common.config import DATA_DIR
 from .db import mark_article_summarized, log_processing_action, update_article_content
 
 
@@ -180,12 +183,25 @@ def summarize_articles_for_date(date_str, provider="gemini"):
             continue
         try:
             print(f"Starting to summarize: {article['title']}")
-            summary = summarize_article(article, provider)
+            result = classify_and_summarize_article(article, provider)
+
+            if result is None:
+                print(f"Article is not software engineering related, skipping: {article['title']}")
+                continue
+
+            # Extract summary and categories from result
+            summary = result.get("summary", "")
+            categories = result.get("categories", [])
+
             print(f"Finished summarizing: {article['title']}")
+            if categories:
+                print(f"Categories: {', '.join(categories)}")
+
             article_summary = {
                 "title": article["title"],
                 "link": article["link"],
                 "summary": summary,
+                "categories": categories,
             }
             summaries.append(article_summary)
             summaries_by_link[article["link"]] = article_summary
@@ -198,6 +214,8 @@ def summarize_articles_for_date(date_str, provider="gemini"):
             # Generate markdown immediately
             article_with_summary = article.copy()
             article_with_summary["summary"] = summary
+            if categories:
+                article_with_summary["summary"] += f"\n\n🏷️ Categories: {', '.join(categories)}"
             filename, content = generate_markdown_article(
                 article_with_summary, date_str
             )
@@ -398,16 +416,42 @@ def process_article(article, provider="gemini"):
     }
 
     try:
-        print(f"Summarizing: {article['title']}")
-        summary = summarize_article(article_for_summary, provider)
+        # Classify and summarize in one LLM call
+        print(f"Processing and classifying: {article['title']}")
+        result = classify_and_summarize_article(article_for_summary, provider)
+
+        if result is None:
+            print(f"Article is not software engineering related, skipping: {article['title']}")
+            log_processing_action(article["id"], "skipped_non_tech")
+            return None
+
+        # Extract summary and categories from result
+        summary = result.get("summary", "")
+        categories = result.get("categories", [])
+
         print(f"Summary generated for: {article['title']}")
+        if categories:
+            print(f"Categories: {', '.join(categories)}")
+
+        # Store both summary and categories in the database
+        # For now, we'll store categories as a JSON string in the summary field
+        # or extend the database schema. For backward compatibility, let's append categories to summary.
+        full_summary = summary
+        if categories:
+            categories_str = f"\n\n🏷️ Categories: {', '.join(categories)}"
+            full_summary += categories_str
 
         # Mark article as summarized in DB
-        success = mark_article_summarized(article["id"], summary, provider)
+        success = mark_article_summarized(article["id"], full_summary, provider)
         if success:
             log_processing_action(article["id"], "summarized")
             print(f"Article processed and stored: {article['title']}")
-            return summary
+            # Return both summary and categories for further processing
+            return {
+                "summary": summary,
+                "categories": categories,
+                "full_summary": full_summary
+            }
         else:
             print(f"Failed to update database for: {article['title']}")
             return None
