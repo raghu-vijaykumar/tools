@@ -4,6 +4,7 @@
 # RSS Feeds Section
 RSS_SOURCES = [
     {"name": "google", "url": "https://developers.googleblog.com/feeds/posts/default"},
+    {"name": "google_research", "url": "https://research.google/blog/rss/"},
     {"name": "meta", "url": "https://engineering.fb.com/feed/"},
     {"name": "airbnb", "url": "https://medium.com/feed/airbnb-engineering"},
     {"name": "linkedin", "url": "https://engineering.linkedin.com/blog.rss.html"},
@@ -26,7 +27,7 @@ RSS_SOURCES = [
     {"name": "grab", "url": "https://engineering.grab.com/feed"},
     {"name": "gitlab", "url": "https://about.gitlab.com/atom.xml"},
     {"name": "heroku", "url": "https://www.heroku.com/blog/feed/"},
-    {"name": "nvidia", "url": "https://developer.nvidia.com/blog/feed/"},
+    #{"name": "nvidia", "url": "https://developer.nvidia.com/blog/feed/"},
     {"name": "adobe", "url": "https://medium.com/feed/adobetech"},
     {"name": "salesforce", "url": "https://engineering.salesforce.com/feed/"},
     {"name": "dropbox_security", "url": "https://dropbox.tech/security/feed"},
@@ -49,6 +50,12 @@ SCRAPING_SOURCES = [
                 "https://www.uber.com/en-IN/blog/engineering/ai/",
                 "https://www.uber.com/en-IN/blog/engineering/web/",
                 "https://www.uber.com/blog/research/",
+                "https://www.uber.com/en-IN/blog/earn/",
+                "https://www.uber.com/en-IN/blog/ride/",
+                "https://www.uber.com/en-IN/blog/business/",
+                "https://www.uber.com/en-IN/blog/higher-education/",
+                "https://www.uber.com/en-IN/blog/transit/",
+                "https://www.uber.com/en-IN/blog/careers/",
             ],
         },
     },
@@ -58,13 +65,20 @@ SCRAPING_SOURCES = [
         "config": {
             "article_body_selector": "article, .post-content, .blog-post, main",
             "url_prefixes": ["https://machinelearning.apple.com/research"],
+            "exclude_patterns": [r"year=.*"],
         },
     },
-    {
-        "name": "alphabet",
-        "base_url": "https://alphabetengineering.com/blog",
-        "config": {"url_prefixes": ["https://alphabetengineering.com/blog/"]},
-    },
+    # {
+    #     "name": "alphabet",
+    #     "base_url": "https://alphabetengineering.com/blog",
+    #     "config": {
+    #         "url_prefixes": ["https://alphabetengineering.com/blog/"],
+    #         "exclude_prefixes": [
+    #             "https://alphabetengineering.com/blog/tag/",
+    #             "https://alphabetengineering.com/blog/category/",
+    #         ],
+    #     },
+    # },
     {
         "name": "pinterest",
         "base_url": "https://medium.com/pinterest-engineering",
@@ -96,17 +110,11 @@ SCRAPING_SOURCES = [
                 "https://research.facebook.com/publications/tag/",
                 "https://research.facebook.com/publications/year/",
                 "https://research.facebook.com/publications/research-area/",
+                "https://research.facebook.com/publications/page/",
             ],
         },
     },
-    {
-        "name": "google_research",
-        "base_url": "https://research.google/blog/",
-        "config": {
-            "article_body_selector": "article, .post-content, .blog-post, main",
-            "url_prefixes": ["https://research.google/blog/"],
-        },
-    },
+
     {
         "name": "netflix",
         "base_url": "https://netflixtechblog.com/",
@@ -200,6 +208,7 @@ SCRAPING_SOURCES = [
                 "https://blog.janestreet.com/tag/",
                 "https://blog.janestreet.com/page/",
                 "https://blog.janestreet.com/archive/",
+                "https://blog.janestreet.com/authors"
             ],
         },
     },

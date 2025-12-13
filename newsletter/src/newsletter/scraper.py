@@ -1,4 +1,5 @@
 import time
+import re
 import logging
 from urllib.parse import urljoin
 from bs4 import BeautifulSoup
@@ -67,8 +68,19 @@ class BlogScraper:
                         logging.info(f"Excluding URL (matches exclude prefix '{excl_prefix}'): {href}")
                         excluded = True
                         break
-                if excluded:
-                    continue  # Skip excluded links
+            
+            # Check exclude patterns (regex)
+            if not excluded:
+                exclude_patterns = self.config.get("exclude_patterns", [])
+                if exclude_patterns:
+                    for pattern in exclude_patterns:
+                        if re.search(pattern, href):
+                            logging.info(f"Excluding URL (matches exclude pattern '{pattern}'): {href}")
+                            excluded = True
+                            break
+
+            if excluded:
+                continue  # Skip excluded links
 
             # Then filter links based on url_prefixes if provided, otherwise use old logic
             url_prefixes = self.config.get("url_prefixes", [])
